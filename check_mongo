@@ -1,0 +1,48 @@
+#!/usr/bin/env python
+
+import getopt
+import sys
+import pymongo
+
+def main(argv):
+  try:
+    opts, args = getopt.getopt(argv, "H:P:C:W:", ["host=", "port=", "critical=", "warn="])
+  except getopt.GetoptError:
+    usage()
+    sys.exit(2)
+
+  server_hostname = 'localhost'
+  critical_thresh = 60
+  warning_thresh = 30
+  server_port = 27017
+
+  for opt, arg in opts:
+    if opt in ("-H", "--host"):
+      server_hostname = arg
+    elif opt in ("-P", "--port"):
+      server_port = int(arg)
+    elif opt in ("-C", "--critical"):
+      critical_thresh = int(arg)
+    elif opt in ("-W", "--warning"):
+      warning_thresh = int(arg)
+
+  con = pymongo.Connection(server_hostname, server_port, None, None, None, True)
+  ret = con.admin.command(pymongo.son.SON([('serverStatus', 1), ('repl', 2)]))
+  try:
+    seconds = int(ret['repl']['sources'][0]['lagSeconds'])
+  except (KeyError, IndexError):
+    print "UNKNOWN - We can't find lag seconds, wrong version?"
+    sys.exit(3)
+
+  if  seconds > critical_thresh:
+    print "CRITICAL - Replication lagging " + str(seconds) + " behind."
+    sys.exit(2)
+  elif seconds > warning_thresh:
+    print "WARNING - Replication lagging " + str(seconds) + " behind."
+    sys.exit(1)
+  else:
+    print "OK - Replication in sync"
+    sys.exit(0)
+
+if __name__ == "__main__":
+    main(sys.argv[1:])
