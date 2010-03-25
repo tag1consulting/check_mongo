@@ -4,9 +4,12 @@ import getopt
 import sys
 import pymongo
 
+##
+# Main
+##
 def main(argv):
   try:
-    opts, args = getopt.getopt(argv, "H:P:C:W:", ["host=", "port=", "critical=", "warn="])
+    opts, args = getopt.getopt(argv, "H:P:C:W:A:", ["host=", "port=", "critical=", "warn=", "action="])
   except getopt.GetoptError:
     usage()
     sys.exit(2)
@@ -15,6 +18,7 @@ def main(argv):
   critical_thresh = 60
   warning_thresh = 30
   server_port = 27017
+  action = "connect"
 
   for opt, arg in opts:
     if opt in ("-H", "--host"):
@@ -25,9 +29,114 @@ def main(argv):
       critical_thresh = int(arg)
     elif opt in ("-W", "--warning"):
       warning_thresh = int(arg)
+    elif opt in ("-A", "--action"):
+      action = arg
 
-  con = pymongo.Connection(server_hostname, server_port, None, None, None, True)
+  if action == "connect":
+    connect_test(server_hostname, server_port, critical_thresh, warning_thresh)
+  elif action == "slavelag":
+    slave_lag_test(server_hostname, server_port, critical_thresh, warning_thresh)
+  elif action == "count":
+    connect_count_test(server_hostname, server_port, critical_thresh, warning_thresh)
+  elif action == "long":
+    long_running_test(server_hostname, server_port, critical_thresh, warning_thresh)
+
+##
+
+##
+# Usage
+##
+def usage():
+  print "Usage: ./check_mongo -H <hostname> -P <port> -C <critical threshold> -W <warning threshold> -A <action>"
+  print "Possible actions:"
+  print " - connect - check connection, takes seconds as a timeout val"
+  print " - slavelag - check slave status, takes seconds behind for warning/critical lag"
+  print " - count - check connection count, takes number of active connections for warning/critical"
+  print " - long - check for long running queries, takes seconds running for warning/critical"
+
+##
+# Check for long running operations
+#
+def long_running_test(hostname, port, critical, warning):
+  try:
+    con = pymongo.Connection(hostname, port, None, None, None, True, 30)
+  except ConnectionFailure: 
+    print "CRITICAL - Connection to mongo failed"
+    sys.exit(2)
+
+  db = con.admin
+  ret = db["$cmd"].sys.inprog.find_one();
+  max_seconds = 0
+
+  if len(ret['inprog']) == 0:
+    print "OK - No Ops Lagging"
+    sys.exit(0)
+
+  for op in ret['inprog']:
+    if op['active'] == False:
+      continue
+    print op
+    if op['secs_running'] > max_seconds:
+      max_seconds = op['secs_running']
+
+  if max_seconds > critical:
+    print "CRITICAL - Op running for " + str(max_seconds) + " seconds"
+    sys.exit(2)
+  elif max_seconds > warning:
+    print "WARNING - Op running for " + str(max_seconds) + " seconds"
+    sys.exit(1)
+  else:
+    print "OK - No Ops Lagging"
+    sys.exit(0)
+
+##
+# Check the count of active connections
+##
+def connect_count_test(hostname, port, critical, warning):
+  try:
+    con = pymongo.Connection(hostname, port, None, None, None, True, 30)
+  except ConnectionFailure: 
+    print "CRITICAL - Connection to mongo failed"
+    sys.exit(2)
+
+  db = con.admin
+  ret = db["$cmd"].sys.inprog.find_one();
+  count = len(ret['inprog'])
+  if count > critical:
+    print "CRITICAL - Connection Count " + str(count)
+    sys.exit(2)
+  elif len(ret['inprog']) > warning:
+    print "WARNING - Connection Count " + str(count)
+    sys.exit(1)
+  else:
+    print "OK - Connection Count " + str(count)
+    sys.exit(0)
+
+##
+# Check that we can connect
+##
+def connect_test(hostname, port, critical, warning):
+  try:
+    con = pymongo.Connection(hostname, port, None, None, None, True, critical)
+  except ConnectionFailure: 
+    print "CRITICAL - Connection to mongo failed"
+    sys.exit(2)
+
+  print "OK - Connect accepted"
+  sys.exit(0)
+
+##
+# Check if the slave thread is lagging
+##
+def slave_lag_test(hostname, port, critical, warning):
+  try:
+    con = pymongo.Connection(hostname, port, None, None, None, True, 30)
+  except ConnectionFailure: 
+    print "CRITICAL - Connection to mongo failed"
+    sys.exit(2)
+
   ret = con.admin.command(pymongo.son.SON([('serverStatus', 1), ('repl', 2)]))
+
   try:
     seconds = int(ret['repl']['sources'][0]['lagSeconds'])
   except (KeyError, IndexError):
@@ -44,5 +153,8 @@ def main(argv):
     print "OK - Replication in sync"
     sys.exit(0)
 
+##
+# Main
+##
 if __name__ == "__main__":
     main(sys.argv[1:])
