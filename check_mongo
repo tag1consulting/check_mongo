@@ -154,10 +154,10 @@ def slave_lag_test(hostname, port, critical, warning):
     sys.exit(3)
 
   if  seconds > critical:
-    print "CRITICAL - Replication lagging " + str(seconds) + " behind."
+    print "CRITICAL - Replication lagging " + str(seconds) + " seconds behind."
     sys.exit(2)
   elif seconds > warning:
-    print "WARNING - Replication lagging " + str(seconds) + " behind."
+    print "WARNING - Replication lagging " + str(seconds) + " seconds behind."
     sys.exit(1)
   else:
     print "OK - Replication in sync"
