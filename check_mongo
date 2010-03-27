@@ -14,11 +14,11 @@ def main(argv):
     usage()
     sys.exit(2)
 
-  server_hostname = 'localhost'
+  server_hostname = 'default'
   critical_thresh = 60
   warning_thresh = 30
   server_port = 27017
-  action = "connect"
+  action = 'default' 
 
   for opt, arg in opts:
     if opt in ("-H", "--host"):
@@ -31,6 +31,10 @@ def main(argv):
       warning_thresh = int(arg)
     elif opt in ("-A", "--action"):
       action = arg
+
+  if 'default' in (server_hostname, action):
+    usage()
+    sys.exit(2)
 
   if action == "connect":
     connect_test(server_hostname, server_port, critical_thresh, warning_thresh)
@@ -47,12 +51,17 @@ def main(argv):
 # Usage
 ##
 def usage():
-  print "Usage: ./check_mongo -H <hostname> -P <port> -C <critical threshold> -W <warning threshold> -A <action>"
+  print "Usage: ./check_mongo -H <hostname> -A <action> -P <port> -C <critical threshold> -W <warning threshold>"
   print "Possible actions:"
-  print " - connect - check connection, takes seconds as a timeout val"
-  print " - slavelag - check slave status, takes seconds behind for warning/critical lag"
-  print " - count - check connection count, takes number of active connections for warning/critical"
-  print " - long - check for long running queries, takes seconds running for warning/critical"
+  print " - connect - Attempt to connect with the mongo instance"
+  print " -- Takes a critical thresh for connection timeout and ignores the warning threshold"
+  print " - slavelag - Check slave status to ensure its not lagging to far behind"
+  print " -- Takes warning/critical thresholds for seconds behind master"
+  print " - count - Check the number of MongoDB operations"
+  print " -- Takes warning/critical thresholds for number of active ops"
+  print " - long - Checks for long running queries"
+  print " -- Takes warning/critical thresholds for seconds running"
+  print "NOTE: At least Hostname And Action arguments are required"
 
 ##
 # Check for long running operations
@@ -60,7 +69,7 @@ def usage():
 def long_running_test(hostname, port, critical, warning):
   try:
     con = pymongo.Connection(hostname, port, None, None, None, True, 30)
-  except ConnectionFailure: 
+  except pymongo.errors.ConnectionFailure: 
     print "CRITICAL - Connection to mongo failed"
     sys.exit(2)
 
@@ -79,10 +88,10 @@ def long_running_test(hostname, port, critical, warning):
     if op['secs_running'] > max_seconds:
       max_seconds = op['secs_running']
 
-  if max_seconds > critical:
+  if max_seconds >= critical:
     print "CRITICAL - Op running for " + str(max_seconds) + " seconds"
     sys.exit(2)
-  elif max_seconds > warning:
+  elif max_seconds >= warning:
     print "WARNING - Op running for " + str(max_seconds) + " seconds"
     sys.exit(1)
   else:
@@ -95,17 +104,17 @@ def long_running_test(hostname, port, critical, warning):
 def connect_count_test(hostname, port, critical, warning):
   try:
     con = pymongo.Connection(hostname, port, None, None, None, True, 30)
-  except ConnectionFailure: 
+  except pymongo.errors.ConnectionFailure: 
     print "CRITICAL - Connection to mongo failed"
     sys.exit(2)
 
   db = con.admin
   ret = db["$cmd"].sys.inprog.find_one();
   count = len(ret['inprog'])
-  if count > critical:
+  if count >= critical:
     print "CRITICAL - Connection Count " + str(count)
     sys.exit(2)
-  elif len(ret['inprog']) > warning:
+  elif len(ret['inprog']) >= warning:
     print "WARNING - Connection Count " + str(count)
     sys.exit(1)
   else:
@@ -118,7 +127,7 @@ def connect_count_test(hostname, port, critical, warning):
 def connect_test(hostname, port, critical, warning):
   try:
     con = pymongo.Connection(hostname, port, None, None, None, True, critical)
-  except ConnectionFailure: 
+  except pymongo.errors.ConnectionFailure: 
     print "CRITICAL - Connection to mongo failed"
     sys.exit(2)
 
@@ -131,7 +140,7 @@ def connect_test(hostname, port, critical, warning):
 def slave_lag_test(hostname, port, critical, warning):
   try:
     con = pymongo.Connection(hostname, port, None, None, None, True, 30)
-  except ConnectionFailure: 
+  except pymongo.errors.ConnectionFailure: 
     print "CRITICAL - Connection to mongo failed"
     sys.exit(2)
 
@@ -140,13 +149,13 @@ def slave_lag_test(hostname, port, critical, warning):
   try:
     seconds = int(ret['repl']['sources'][0]['lagSeconds'])
   except (KeyError, IndexError):
-    print "UNKNOWN - We can't find lag seconds, wrong version?"
+    print "UNKNOWN - We can't find lag seconds, wrong version or perhaps you specified the master?"
     sys.exit(3)
 
-  if  seconds > critical_thresh:
+  if  seconds >= critical_thresh:
     print "CRITICAL - Replication lagging " + str(seconds) + " behind."
     sys.exit(2)
-  elif seconds > warning_thresh:
+  elif seconds >= warning_thresh:
     print "WARNING - Replication lagging " + str(seconds) + " behind."
     sys.exit(1)
   else:
