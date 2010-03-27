@@ -44,6 +44,9 @@ def main(argv):
     connect_count_test(server_hostname, server_port, critical_thresh, warning_thresh)
   elif action == "long":
     long_running_test(server_hostname, server_port, critical_thresh, warning_thresh)
+  else:
+    usage();
+    sys.exit(2)
 
 ##
 
