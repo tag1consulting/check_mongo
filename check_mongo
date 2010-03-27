@@ -9,7 +9,7 @@ import pymongo
 ##
 def main(argv):
   try:
-    opts, args = getopt.getopt(argv, "H:P:C:W:A:", ["host=", "port=", "critical=", "warn=", "action="])
+    opts, args = getopt.getopt(argv, "H:P:c:w:A:", ["host=", "port=", "critical=", "warn=", "action="])
   except getopt.GetoptError:
     usage()
     sys.exit(2)
@@ -25,9 +25,9 @@ def main(argv):
       server_hostname = arg
     elif opt in ("-P", "--port"):
       server_port = int(arg)
-    elif opt in ("-C", "--critical"):
+    elif opt in ("-c", "--critical"):
       critical_thresh = int(arg)
-    elif opt in ("-W", "--warning"):
+    elif opt in ("-w", "--warning"):
       warning_thresh = int(arg)
     elif opt in ("-A", "--action"):
       action = arg
