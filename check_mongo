@@ -85,11 +85,9 @@ def long_running_test(hostname, port, critical, warning):
     sys.exit(0)
 
   for op in ret['inprog']:
-    if op['active'] == False:
-      continue
-    print op
-    if op['secs_running'] > max_seconds:
-      max_seconds = op['secs_running']
+    if 'secs_running' in op.keys():
+      if op['secs_running'] > max_seconds:
+        max_seconds = op['secs_running']
 
   if max_seconds > critical:
     print "CRITICAL - Op running for " + str(max_seconds) + " seconds"
