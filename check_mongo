@@ -153,10 +153,10 @@ def slave_lag_test(hostname, port, critical, warning):
     print "UNKNOWN - We can't find lag seconds, wrong version or perhaps you specified the master?"
     sys.exit(3)
 
-  if  seconds > critical_thresh:
+  if  seconds > critical:
     print "CRITICAL - Replication lagging " + str(seconds) + " behind."
     sys.exit(2)
-  elif seconds > warning_thresh:
+  elif seconds > warning:
     print "WARNING - Replication lagging " + str(seconds) + " behind."
     sys.exit(1)
   else:
