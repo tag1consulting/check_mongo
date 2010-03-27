@@ -91,10 +91,10 @@ def long_running_test(hostname, port, critical, warning):
     if op['secs_running'] > max_seconds:
       max_seconds = op['secs_running']
 
-  if max_seconds >= critical:
+  if max_seconds > critical:
     print "CRITICAL - Op running for " + str(max_seconds) + " seconds"
     sys.exit(2)
-  elif max_seconds >= warning:
+  elif max_seconds > warning:
     print "WARNING - Op running for " + str(max_seconds) + " seconds"
     sys.exit(1)
   else:
@@ -114,10 +114,10 @@ def connect_count_test(hostname, port, critical, warning):
   db = con.admin
   ret = db["$cmd"].sys.inprog.find_one();
   count = len(ret['inprog'])
-  if count >= critical:
+  if count > critical:
     print "CRITICAL - Connection Count " + str(count)
     sys.exit(2)
-  elif len(ret['inprog']) >= warning:
+  elif len(ret['inprog']) > warning:
     print "WARNING - Connection Count " + str(count)
     sys.exit(1)
   else:
@@ -155,10 +155,10 @@ def slave_lag_test(hostname, port, critical, warning):
     print "UNKNOWN - We can't find lag seconds, wrong version or perhaps you specified the master?"
     sys.exit(3)
 
-  if  seconds >= critical_thresh:
+  if  seconds > critical_thresh:
     print "CRITICAL - Replication lagging " + str(seconds) + " behind."
     sys.exit(2)
-  elif seconds >= warning_thresh:
+  elif seconds > warning_thresh:
     print "WARNING - Replication lagging " + str(seconds) + " behind."
     sys.exit(1)
   else:
