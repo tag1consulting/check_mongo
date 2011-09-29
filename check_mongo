@@ -4,6 +4,11 @@ import getopt
 import sys
 import pymongo
 
+try:
+    from pymongo.son import SON
+except ImportError:
+    from bson.son import SON
+
 ##
 # Main
 ##
@@ -41,7 +46,7 @@ def main(argv):
   elif action == "slavelag":
     slave_lag_test(server_hostname, server_port, critical_thresh, warning_thresh)
   elif action == "count":
-    connect_count_test(server_hostname, server_port, critical_thresh, warning_thresh)
+    operation_count_test(server_hostname, server_port, critical_thresh, warning_thresh)
   elif action == "long":
     long_running_test(server_hostname, server_port, critical_thresh, warning_thresh)
   else:
@@ -71,7 +76,7 @@ def usage():
 #
 def long_running_test(hostname, port, critical, warning):
   try:
-    con = pymongo.Connection(hostname, port, None, None, None, True, 30)
+    con = pymongo.Connection(hostname, port, slave_okay=True, network_timeout=30)
   except pymongo.errors.ConnectionFailure: 
     print "CRITICAL - Connection to mongo failed"
     sys.exit(2)
@@ -100,11 +105,11 @@ def long_running_test(hostname, port, critical, warning):
     sys.exit(0)
 
 ##
-# Check the count of active connections
+# Check the count of active operations
 ##
-def connect_count_test(hostname, port, critical, warning):
+def operation_count_test(hostname, port, critical, warning):
   try:
-    con = pymongo.Connection(hostname, port, None, None, None, True, 30)
+    con = pymongo.Connection(hostname, port, slave_okay=True, network_timeout=30)
   except pymongo.errors.ConnectionFailure: 
     print "CRITICAL - Connection to mongo failed"
     sys.exit(2)
@@ -113,13 +118,13 @@ def connect_count_test(hostname, port, critical, warning):
   ret = db["$cmd"].sys.inprog.find_one();
   count = len(ret['inprog'])
   if count > critical:
-    print "CRITICAL - Connection Count " + str(count)
+    print "CRITICAL - Operation Count " + str(count)
     sys.exit(2)
   elif len(ret['inprog']) > warning:
-    print "WARNING - Connection Count " + str(count)
+    print "WARNING - Operation Count " + str(count)
     sys.exit(1)
   else:
-    print "OK - Connection Count " + str(count)
+    print "OK - Operation Count " + str(count)
     sys.exit(0)
 
 ##
@@ -127,7 +132,7 @@ def connect_count_test(hostname, port, critical, warning):
 ##
 def connect_test(hostname, port, critical, warning):
   try:
-    con = pymongo.Connection(hostname, port, None, None, None, True, critical)
+    con = pymongo.Connection(hostname, port, slave_okay=True, network_timeout=critical)
   except pymongo.errors.ConnectionFailure: 
     print "CRITICAL - Connection to mongo failed"
     sys.exit(2)
@@ -136,16 +141,16 @@ def connect_test(hostname, port, critical, warning):
   sys.exit(0)
 
 ##
-# Check if the slave thread is lagging
+# Check if the slave thread is lagging. This only supports master/slave, not replica sets.
 ##
 def slave_lag_test(hostname, port, critical, warning):
   try:
-    con = pymongo.Connection(hostname, port, None, None, None, True, 30)
+    con = pymongo.Connection(hostname, port, slave_okay=True, network_timeout=30)
   except pymongo.errors.ConnectionFailure: 
     print "CRITICAL - Connection to mongo failed"
     sys.exit(2)
 
-  ret = con.admin.command(pymongo.son.SON([('serverStatus', 1), ('repl', 2)]))
+  ret = con.admin.command(SON([('serverStatus', 1), ('repl', 2)]))
 
   try:
     seconds = int(ret['repl']['sources'][0]['lagSeconds'])
